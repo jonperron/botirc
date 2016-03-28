@@ -1,0 +1,455 @@
+;***************************
+;****                   ****
+;***                     ***
+;**       LES ALIAS       **
+;***                     ***
+;****                   ****
+;***************************
+
+;-----------------------
+;
+;LES ALIAS INDIPENSABLE
+;
+;-----------------------
+
+;Vas traiter l'entrée.
+;$1 = Où il doit dire la phrase.
+;$2 = Nick du gars
+;$3- = phrase dite par le gars
+;%ia.temp = qqch qui identifie la personne. Par default (avec les socket) c l'host de la personne
+
+alias ia.traite {
+  ;%c = Phrase dite par la personne
+  ;%ia.axx = access de la personne (l n c o a) 
+
+  var %c,%ia.axx
+  %ia.axx = $ia.axx(%ia.temp)
+
+  ;On inianalise
+  if (!$hget(ia)) ia.init
+
+  if ($left($3,1) == !) {
+    if ($3 == !help) ia.out $1 Toutes l'aide sur ce bot se trouve sur: 2http://moipetit.free.fr/ia/readme.htm 
+    elseif ($3 == !syn) { 
+      if ($ia.axx2(%ia.axx,c)) ia.out $1 $gettok($ia.syn($4-),2-,32) 
+      else ia.out $1 Access insufisant     
+    }
+    elseif ($3 == !eff) {
+      if ($ia.axx2(%ia.axx,c)) ia.out $1 $gettok($ia.eff($4-),2-,32)
+      else ia.out $1 Access insufisant 
+    }
+    elseif ($3 == !non) {
+      if (!$ia.axx2(%ia.axx,l)) { ia.out $1 Access insufisant | return }
+      if ($hget(ia,t2. $+ %ia.temp) != $null ) {
+        hadd ia t1. $+ %ia.temp $hget(ia,t2. $+ %ia.temp)
+        ia.CmotP $4-
+      }
+      hadd ia t3. $+ %ia.temp $hget(ia,t2. $+ %ia.temp)    
+      hadd ia t2. $+ %ia.temp $hget(ia,t1. $+ %ia.temp)
+      hadd ia t1. $+ %ia.temp $4-
+      ia.out $1 $iif($asc($1) == 35,$2 $+ :) $4-
+    }
+    elseif ($3 == !reco) {
+      hdel -w ia t?. $+ %ia.temp
+      hadd ia idk. $+ %ia.temp 1    
+      ia.out $1 La conversation recommence depuis le début
+    }
+    elseif ($3 == !stats ) ia.out $1 Je connais $hget(ia,Nbr) phrases, $hfind(ia,^m([^¤])+$,0,r) mots et ma bd pèse $bytes($file(ia\ia.txt).size).suf    
+    elseif ($3 == !version) ia.out $1 Ia bot version 1.5b by tiot (2http://moipetit.free.fr/ia/)     
+    elseif ($istok(!addm !delm !addp !Wm !Wp !Remplace,$3,32)) {
+      if ($ia.axx2(%ia.axx,c)) {
+        var %c
+        if ($3 == !addm) %c = $ia.addm($4-)
+        elseif ($3 == !delm) %c = $ia.delm($4-)
+        elseif ($3 == !addp) %c = $ia.addp($4-)
+        elseif ($3 == !wp) %c = $ia.wp($4-) 
+        elseif ($3 == !wm) %c = $ia.wm($4-)
+        elseif ($3 == !remplace) %c = $ia.Remplace($4-)
+      }
+      ia.out $1 $gettok(%c,2-,32)
+      else ia.out $1 Access insufisant     
+    } 
+    elseif ($istok(!auth !addh !delh !listh !addaxx !delaxx !listaxx,$3,32)) return $ia.BotAxx($1,$3-)    
+    return
+  }
+
+  ;bordel
+  %c = $ia.cher($3-,$hget(ia,t1. $+ %ia.temp))
+  if ($ia.axx2(%ia.axx,l)) ia.CmotP $3-
+
+  if ($asc($1) == 35) ia.out $1 $2 $+ : %c
+  else {
+    if (%ia.log) {
+      write ia\log\ $+ %ia.temp $+ $date(dd.mm.yy) $+ .log $timestamp $+(<,$1,>) $3- 
+      write ia\log\ $+ %ia.temp $+ $date(dd.mm.yy) $+ .log $timestamp $+(<,%ia.nick,>) %c
+    }
+    if (%ia.debug) {
+      if (!$window(@Ia)) window -en @ia
+      aline @ia $2 -> $3-
+      aline @ia %ia.nick -> %c
+    }
+    ia.out $1 %c
+  }
+  ;ia,idk = 1 si il a trouver une réponse, sinon il est égal à 0
+  if (!$hget(ia,idk. $+ %ia.temp)) { 
+    hadd ia t3. $+ %ia.temp $hget(ia,t2. $+ %ia.temp)    
+    hadd ia t2. $+ %ia.temp $hget(ia,t1. $+ %ia.temp)
+    hadd ia t1. $+ %ia.temp $3-
+    hadd ia idk. $+ %ia.temp 1
+  }
+  else {
+    hadd ia t3. $+ %ia.temp $hget(ia,t2. $+ %ia.temp)    
+    hadd ia t2. $+ %ia.temp $3-
+    hadd ia t1. $+ %ia.temp %c
+  }
+}
+
+;$1 = #canaux/nick vers lequelle vas le msg
+;$2- = phrase que le bot dit
+;C'est l'alias qui indique la sortit, dans ce le cas par default c un socket. 
+alias ia.out {
+  sockwrite -n ia PRIVMSG $1 : $+ $2-
+}
+
+;Vas lié chaque mot de $hget(ia,t1. $+ %ia.temp) avec la phrase $1-
+alias ia.CmotP { 
+  var %P = $hget(ia,t1. $+ %ia.temp),%ia.Np,%b,%a,%c
+  if ($read(ia\ia.txt,w,$1-)) %ia.Np = $readn
+  else {
+    write ia\ia.txt $1- 
+    hinc ia Nbr 
+    %ia.Np = $hget(ia,Nbr) 
+  }
+  %P = $replace(%P,$chr(44),$chr(32),',$chr(32),?,$chr(32) $+ ?)
+  %P = $remove(%P,¤)
+  %b = $numtok(%P,32)
+  while (%b) {
+    %c = %a
+    %a = $gettok(%P,%b,32)
+    dec %b
+    if ($hgeti(ia,eff,%a)) continue
+    if ($hgetg(ia,s. $+ %a,1) == 0) %a = $hgetg(ia,s. $+ %a,2)
+    %c = %a $+ ¤ $+ %c
+    ia.LPM %a %ia.Np
+    ia.LPM %c %ia.Np
+  }
+  hdel -w ia m.*¤
+  hdel -w ia m.¤*  
+  return 1 Les phrase sont bien lié
+}
+
+;C'est l'alias qui vas chercher la bonne phrase celon $1 et $2
+;$1 est la phrase primordial et $2 au cas où 
+alias ia.cher {
+  hdel -w ia2 *
+  if (($numtok($1,32) < 4) && ($2 != $null)) tokenize 32 $1 $1 $2
+  else tokenize 32 $1
+  var %list,%phrase,%a1,%c1,%c2,%a2,%b,%a,%b2,%b1 = $0,%Max = 0
+
+  ;%Phrase = c la phrase qu'il va sortir
+  ;%List = liste des n° de phrases possible 
+  ;%a1 = c un MOT de la phrase
+  ;%c1 = c un groupe de mot de la phrase
+  ;%a2 = c une des phrases liées a %a1
+  ;%b,%b1,%b2 = compteurs de boucle
+  ;%Max = max de fois qu'une phrase est cité
+
+  while (%b1) {
+    %c1 = %a1     
+    %a1 = $gettok($1-,%b1,32)
+    if ($hgetg(ia,s. $+ %a1,1) == 0) %a1 = $hgetg(ia,s. $+ %a1,2) 
+    %c1 = %a1 $+ ¤ $+ %c1  
+    %b2 = $numtok($ia.m(%a1),32)
+    while (%b2) {
+      %a2 = $gettok($ia.m(%a1),%b2,32)    
+      hinc ia2 %a2   
+      if ($hget(ia2,%a2) > %Max) %Max = $ifmatch
+      dec %b2    
+    }
+
+    %b2 = $numtok($ia.m(%c1),32)
+    while (%b2) {
+      %a2 = $gettok($ia.m(%c1),%b2,32)     
+      hinc ia2 %a2 2
+      if ($hget(ia2,%a2) > %Max) %Max = $ifmatch
+      dec %b2    
+    }
+    dec %b1
+  }
+  ;On recherche les phrases les plus cités.
+  %b = $hfind(ia2,%max,0,n).data
+  while (%b) {
+    if ($len(%list) > 900) break
+    %list = %list $hfind(ia2,%max,%b,n).data  
+    dec %b  
+  }
+
+  ;%phrase contient maintenant la phrase final, il faut maintenant chercher les synonymes. 
+  %phrase = $read(ia\ia.txt,$gettok(%list,$rand(1,$numtok(%list,32)),32)) 
+  %b = $numtok(%phrase,32)
+  while (%b) {
+    %a = $gettok(%phrase,%b,32)
+    if ($hget(ia,s. $+ %a) != $null) {
+      if ($hgetg(ia,s. $+ %a,1) == 0) %a = $hgetg(ia,s. $+ %a,2) 
+      %a = $hget(ia,s. $+ %a)      
+      %a = $gettok(%a,$rand(2,$numtok(%a,32)),32))
+      %Phrase = $puttok(%Phrase,%a,%b,32)
+    }
+    dec %b
+  }
+  if (%Phrase == $null) { hadd ia idk. $+ %ia.temp 0 | return j'aurais du dire ... ? }
+  else return %Phrase
+}
+
+;Lié Le mot $1 avec la phrase n° $2
+;-Si $2 est déjà dans $1 on le met en pôle position
+;-Si l'item est remplit on vire le dernièrs token et on place notre $2 en -20 position
+:-tout ce passe bien on le met normal (en dernièrs position comme même)
+alias ia.LPM {
+  if ($hgeti(ia,m. $+ $1,$2)) {
+    hdelt ia m. $+ $1 $2
+    hadd ia m. $+ $1 $2 $ia.m($1)
+    return 1
+  }
+  if ($len($ia.m($1)) > 900) {
+    hadd ia m. $+ $1 $instok($deltok($ia.m($1),-1,32),$2,-20,32)
+    return 1
+  }
+  haddt ia m. $+ $1 $2
+  return 1
+}
+
+;$1 = access de la personne
+;$2 = commande qu'il veut éxercé (c l a o)
+;return 1 si il peut éxercer la commande, sinon 0.
+;Cette alias sert uniquement si vous voulez intégré l'ia à votre bot.  
+alias ia.axx2 {
+  if ($2 isin $1) return 1
+  else return 0
+}
+
+;Cette alias retourne l'access de la personne par raport à %ia.temp (par défault contient l'host). 
+;Vous pouvez ici personalisez vos access pour intégrer l'ia à votre bot. 
+alias ia.axx {
+  if ($hget(ia,a. $+ $1) != $null) return $ifmatch
+  else return %ia.Md
+}
+
+;retourne les lien du mot $1 (c un alias de fainiantise)
+alias ia.m return $hget(ia,m. $+ $1)
+
+;Cette alias sert à inialiser le bot. 
+alias ia.init {
+  .hmake -s ia 100
+  if (!$hget(ia2)) .hmake -s ia2 100
+  if ($exists(ia\ia.hash)) hload ia ia\ia.hash
+  else {
+    hadd ia eff la le un une l' des les d'
+    hadd ia a. $+ %ia.temp olac 
+  }
+  hadd ia Nbr $lines(ia\ia.txt)
+  .timeria 0 300 hsave -o ia ia\ia.hash 
+  if ($hget(ia,NL) != $null) ia.ConBD
+}
+;-------------------------------------------------------------------
+;
+;Les alias indispensables et qui peuvent servir dans d'autre script
+;
+;-------------------------------------------------------------------
+
+;Rajoute $3 à la listes de token de l'item $2 de la hash $1
+alias haddt hadd $1 $2 $addtok($hget($1,$2),$3,32)
+
+;Enlève $3 à la listes de token de l'item $2 de la hash $1
+alias hdelt hadd $1 $2 $remtok($hget($1,$2),$3,1,32)
+
+;Retourne $true si $3 est dans la liste de token de l'item $2 de la hash $1
+alias hgeti return $istok($hget($1,$2),$3,32)
+
+;Return le $3 de la listes des token de l'item $2 de la hash $1
+alias hgetg return $gettok($hget($1,$2),$3,32)
+
+;---------------------------------------------
+;
+; ALIAS DE MODIFICATION DE LA BD AVANCÉE 
+;
+;----------------------------------------------
+
+;Lie les mots $2- à la phrase n° $1 
+;$1 = n° de phrase valide
+;$2- = mot 
+alias ia.addm {
+  tokenize 32 $1-  
+  if ($2 == $null) return 0 Pas assez de paramètre 
+  if ($1 !isnum) return 0 $1 n'est pas un n° 
+  if ($1 > $hget(ia,Nbr)) return 0 $1 ne corespond à aucune phrase 
+  var %a,%b = $numtok($2-,32)
+  while (%b) {
+    %a =  $gettok($2-,%b,32)
+    if (¤ isin %a) {
+      if ($hgetg(ia,s. $+ $gettok(%a,1,164),1) == 0) %a = $hgetg(ia,s. $+ $gettok(%a,1,164),2) $+ ¤ $+ $gettok(%a,2,164) 
+      if ($hgetg(ia,s. $+ $gettok(%a,2,164),1) == 0) %a = $gettok(%a,1,164) $+ ¤ $+ $hgetg(ia,s. $+ $gettok(%a,2,164),2)  
+    }
+    if ($hgetg(ia,s. $+ %a,1) == 0) %a = $hgetg(ia,s. $+ %a,2)   
+    ia.LPM %a $1
+    dec %b
+  }
+  return 1 Les mots $2- on été lié à la phrase n° $1 
+}
+
+alias ia.delm {
+  tokenize 32 $1-
+  if ($2 == $null) return 0 Pas assez de paramètre 
+  if ($1 !isnum) return 0 $1 n'est pas un n° 
+  if ($1 > $read(ia\ia.txt,0)) return 0 $1 ne corespond à aucune phrase 
+  var %b = $numtok($2-,32)
+  while (%b) {
+    hdelt ia m. $+ $gettok($2-,%b,32) $1
+    dec %b
+  }
+  return 1 Les mots $2- ne sont plus liés avec la phrase n° $1 
+}
+
+alias ia.addp {
+  tokenize 32 $1-
+  if ($1 isnum) {
+    if ($2 == $null) return 0 Pas assez de paramètre
+    if ($1 > $hget(ia,Nbr)) return 0 Erreur, la phrase n° $+ $1 n'éxiste pas
+    write -l $+ $1 ia\ia.txt $2-
+  }
+  else {
+    if ($read(ia\ia.txt,w,$1-)) return 0 La phrase est déjà enregistré n° $readn
+    write ia\ia.txt $1-
+    hinc ia Nbr
+  } 
+  return 1 Phrase bien ajouté et à pour n° $hget(ia,Nbr) 
+}
+alias ia.Wp {
+  tokenize 32 $1-
+  if (($1 isnum) && ($2 == $null)) return 1 La phrase n° $1 Correspond à $read(ia\ia.txt,$1) 
+  if ($read(ia\ia.txt,w,$1-)) return 1 La phrase a pour numero: $readn
+  else return 0 La phrase n'est pas dans la BD
+}
+
+alias ia.Wm {
+  tokenize 32 $1-
+  if ((!$1) || ($1 !isnum)) return 0 $1 n'éxiste pas ou n'est pas un nombre
+  var %b1,%list,%c
+  %b1 = $hfind(ia,(^|\s) $+ $1 $+ (\s|$),0,r).data  
+  %list = $null    
+  while (%b1) {
+    %c = $hfind(ia,(^|\s) $+ $1 $+ (\s|$),%b1,r).data
+    ;Le if sert à savoir si on loock bien un mot      
+    if ($left(%c,2) == m.)  %list = %list $right(%c,-2)
+    dec %b1
+  }
+  return 1  2 $+ %list lié à4 $1 
+}
+
+alias ia.remplace {
+  tokenize 32 $1-
+  if ($2 == $null) return 0 Pas assez de paramètre
+  if ($1 === $2) return 0  $1 et $2 c la même chose chez moi 
+  ia.ccl $1 $2
+  ia.RP $1 $2
+  return 1 Opération réussi: $1 a été remplacé par $2 
+}
+;-------------------------------------------------------
+;
+;Alias s'occupant de SAUV - LOAD - CONVERTIR la BD
+;
+;-------------------------------------------------------
+
+alias ia.saveBD {
+  if (!$1) { echo -a precisez le nom de votre sauvgarde: /ia.saveBD pokemon.txt | return }
+  if (!$exist(ia\save\)) mkdir ia\save  
+  var %a,%b,%b1,%i,%c,%c1
+  %i = $ticks
+  %c = $gettok($ia.syn,2-,32)
+  %b = $numtok(%c,32)
+  while (%b) {
+    %a = $gettok(%c,%b,32)
+    write ia\save\ $+ $1 s: %a $hgetg(ia,s. $+ %a,2-)
+    dec %b
+  }
+  %b = 1
+  var %list
+  while ($read(ia\ia.txt,%b)) {
+    write ia\save\ $+ $1 m %b $ifmatch
+    %b1 = $hfind(ia,(^|\s) $+ %b $+ (\s|$),0,r).data  
+    %list = $null    
+    while (%b1) {
+      %c = $hfind(ia,(^|\s) $+ %b $+ (\s|$),%b1,r).data
+      ;Le if sert à savoir si on loock bien un mot
+      if ($len(%list) > 900) {
+        write ia\save\ $+ $1 mm %b %list
+        %list = $null
+      }      
+      if ($left(%c,2) == m.)  %list = %list $right(%c,-2)
+      dec %b1
+    }
+    write ia\save\ $+ $1 mm %b %list
+    inc %b
+  }
+  if ($isid) return 1 La BD a bien été sauvé en $calc($ticks - %i) ms
+  else echo 2 -a La BD a bien été sauvé en $calc($ticks - %i) ms
+}
+
+alias ia.LoadBD {
+  var %b,%b1,%c,%N,%der,%ou = $shortfn($sfile($mircdir,Choisit la BD à loader,LOAD))
+  %b = 1
+  if (!$hget(ia)) ia.init
+  if ($1 == -r) {
+    hdel -w ia m.*
+    hdel -w ia s.*
+    remove ia\ia.txt
+  }  
+  while ($read(%ou,%b)) { 
+    tokenize 32 $ifmatch    
+    if ($1 == s:) ia.syn $2 $3
+    elseif ($1 == m) {
+      if ($read(ia\ia.txt,w,$3-)) %N = $readn
+      else {
+        write ia\ia.txt $3- 
+        hinc ia Nbr 
+        %N = $hget(ia,Nbr) 
+      }
+      %der = $2
+    }
+    elseif ($1 == mm) {
+      if (%der != $2) return 0 problème lors du chargement de la BD 
+      ia.addm %N $3-
+    }
+    else return 0 Ce fichier n'est pas un BD d'une ia 
+    inc %b
+  }
+  if ($isid) return 1 chargement réussi
+  else echo 2 -a Chargement réussi
+}
+alias ia.ConBD {
+  hadd ia Nbr $hget(ia,Nl)
+  hdel ia Nl
+  var %b,%c
+  %b = $hfind(ia,1.*,0,w)
+  while (%b) {
+    %c = $hfind(ia,1.*,%b,w)
+    hadd ia m. $+ $right(%c,-2) $hget(ia,%c)
+    hdel ia %c
+    dec %b
+  }
+  hdel -w ia 0.*
+  hdel -w ia 1.*
+  hdel -w ia 2.*
+  hdel -w ia 3.*
+  hdel -w ia t.*
+  %b = $hfind(ia,syn.*,0,w) 
+  while (%b) {
+    %c = $hfind(ia,syn.*,%b,w)
+    hadd ia s. $+ $right(%c,-4) $hget(ia,%c)
+    hdel ia %c
+    dec %b
+  }
+  hdel -w ia syn.*
+  hadd ia eff la le un une l' des les d'
+  return 1 Convertion de la base réussi
+}

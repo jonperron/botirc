@@ -1,0 +1,4 @@
+ON *:TEXT:*keke*:#:{
+  /unload -rs reponses.txt
+  /load -rs keke.txt
+}

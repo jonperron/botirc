@@ -1,0 +1,4 @@
+$nick : Oui Monsieur
+$nick : Non Monsieur
+$nick : Bien Monsieur
+$nick : ça sera fait Monsieur
